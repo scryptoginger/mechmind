@@ -117,9 +117,7 @@ export const maintenanceTypeRepo = {
   },
 
   async findAll(): Promise<MaintenanceType[]> {
-    const rows = await queryAll<Row>(
-      `SELECT * FROM maintenance_types WHERE category IS NULL OR category != '__internal' ORDER BY category, name`
-    );
+    const rows = await queryAll<Row>(`SELECT * FROM maintenance_types ORDER BY category, name`);
     return rows.map(map);
   },
 

@@ -14,8 +14,9 @@ import type { MaintenanceType } from '../../../../lib/types/MaintenanceType';
 import type { Part } from '../../../../lib/types/Part';
 
 export default function LogNew() {
-  const { id, maintenanceTypeId } = useLocalSearchParams<{ id: string; maintenanceTypeId?: string }>();
+  const { id, maintenanceTypeId, logId } = useLocalSearchParams<{ id: string; maintenanceTypeId?: string; logId?: string }>();
   const router = useRouter();
+  const editing = !!logId;
   const [types, setTypes] = useState<MaintenanceType[]>([]);
   const [type, setType] = useState<MaintenanceType | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
@@ -33,11 +34,35 @@ export default function LogNew() {
       const v = await vehicleRepo.findById(id);
       const ts = await maintenanceTypeRepo.findApplicableTo(id, v?.engine ?? null, v?.transmission ?? null);
       setTypes(ts);
+
+      if (logId) {
+        // Editing — load the existing log and prefill every field.
+        const log = await maintenanceLogRepo.findById(logId);
+        if (log) {
+          setType(ts.find((t) => t.id === log.maintenanceTypeId) ?? null);
+          setOdo(String(log.odometerAtCompletion));
+          setNotes(log.notes ?? '');
+          setTime(log.timeSpentMinutes != null ? String(log.timeSpentMinutes) : '');
+          setDifficulty(log.difficultyActual ?? 2);
+          if (log.partsUsed) {
+            const qty: Record<string, string> = {};
+            const cost: Record<string, string> = {};
+            for (const pu of log.partsUsed) {
+              qty[pu.partId] = String(pu.qty);
+              cost[pu.partId] = String(pu.cost);
+            }
+            setPartQty(qty);
+            setPartCost(cost);
+          }
+          return;
+        }
+      }
+
       const sel = maintenanceTypeId ? ts.find((t) => t.id === maintenanceTypeId) ?? null : null;
       setType(sel);
       if (v?.currentOdometer != null) setOdo(String(v.currentOdometer));
     })();
-  }, [id, maintenanceTypeId]);
+  }, [id, maintenanceTypeId, logId]);
 
   useEffect(() => {
     if (!type) {
@@ -72,16 +97,28 @@ export default function LogNew() {
       }))
       .filter((pu) => pu.qty > 0);
 
-    await maintenanceLogRepo.create({
-      vehicleId: id,
-      maintenanceTypeId: type.id,
-      odometerAtCompletion: odoNum,
-      notes: notes || null,
-      partsUsed: partsUsed.length ? partsUsed : null,
-      totalCost: totalCost || null,
-      timeSpentMinutes: time ? parseInt(time, 10) : null,
-      difficultyActual: difficulty,
-    });
+    if (logId) {
+      await maintenanceLogRepo.update(logId, {
+        maintenanceTypeId: type.id,
+        odometerAtCompletion: odoNum,
+        notes: notes || null,
+        partsUsed: partsUsed.length ? partsUsed : null,
+        totalCost: totalCost || null,
+        timeSpentMinutes: time ? parseInt(time, 10) : null,
+        difficultyActual: difficulty,
+      });
+    } else {
+      await maintenanceLogRepo.create({
+        vehicleId: id,
+        maintenanceTypeId: type.id,
+        odometerAtCompletion: odoNum,
+        notes: notes || null,
+        partsUsed: partsUsed.length ? partsUsed : null,
+        totalCost: totalCost || null,
+        timeSpentMinutes: time ? parseInt(time, 10) : null,
+        difficultyActual: difficulty,
+      });
+    }
 
     // Also log a maintenance odometer reading + bump vehicle odometer if higher.
     await odometerRepo.create(id, odoNum, 'maintenance');
@@ -96,7 +133,7 @@ export default function LogNew() {
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16 }}>
-      <Stack.Screen options={{ title: 'Log Completed Work' }} />
+      <Stack.Screen options={{ title: editing ? 'Edit Log' : 'Log Completed Work' }} />
 
       <View className="mb-3">
         <Text className="text-muted text-xs uppercase mb-1">Job</Text>

@@ -233,7 +233,8 @@ export const mediaLinkRepo = {
 
   async findByMaintenanceType(maintenanceTypeId: string): Promise<MediaLink[]> {
     const rows = await queryAll<MediaRow>(
-      `SELECT * FROM media_links WHERE maintenance_type_id=? ORDER BY quality_score DESC NULLS LAST`,
+      `SELECT * FROM media_links WHERE maintenance_type_id=?
+       ORDER BY COALESCE(quality_score, -1) DESC, title ASC`,
       [maintenanceTypeId]
     );
     return rows.map(mapMedia);

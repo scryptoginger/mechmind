@@ -140,9 +140,9 @@ export const notificationRepo = {
     const r = await queryOne<NotifRow>(
       `SELECT * FROM notification_log
        WHERE vehicle_id=? AND notification_type=?
-         AND ((related_maintenance_type_id IS NULL AND ? IS NULL) OR related_maintenance_type_id=?)
+         AND COALESCE(related_maintenance_type_id, '') = COALESCE(?, '')
        ORDER BY sent_at DESC LIMIT 1`,
-      [vehicleId, notificationType, relatedMaintenanceTypeId, relatedMaintenanceTypeId]
+      [vehicleId, notificationType, relatedMaintenanceTypeId]
     );
     return r ? mapNotif(r) : null;
   },

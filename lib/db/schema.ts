@@ -172,8 +172,20 @@ export const MIGRATION_001_INIT = [
   )`,
 
   `CREATE INDEX IF NOT EXISTS idx_notif_dedupe ON notification_log(vehicle_id, notification_type, related_maintenance_type_id, sent_at DESC)`,
+
+  `CREATE TABLE IF NOT EXISTS _seed_state (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+  )`,
+];
+
+export const MIGRATION_002_CLEANUP_SEED_MARKER = [
+  // Remove the legacy seed-marker maintenance_type row written by the
+  // first version of seedCatalog. New code uses the _seed_state table.
+  `DELETE FROM maintenance_types WHERE id='seed-marker-v1'`,
 ];
 
 export const ALL_MIGRATIONS: { name: string; statements: string[] }[] = [
   { name: '001_init', statements: MIGRATION_001_INIT },
+  { name: '002_cleanup_seed_marker', statements: MIGRATION_002_CLEANUP_SEED_MARKER },
 ];

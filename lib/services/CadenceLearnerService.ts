@@ -14,13 +14,23 @@ interface Pair {
 
 /**
  * Recent-weighted average over up to WINDOW pairs of consecutive fill-ups.
- * Weight = 1 + (i / WINDOW) so most recent has roughly 2x weight of oldest.
+ * Weight grows linearly with index so the most recent pair gets 2x the
+ * weight of the oldest pair in the window.
+ *
+ *   - n = values.length, i = 0 (oldest) ... n-1 (newest)
+ *   - weight(i) = 1 + i / max(1, n - 1)   →   range [1, 2]
+ *
+ * This way Keith's habits adjust quickly to a recent change in routine
+ * (e.g. starting a long road trip or switching to a different commute).
  */
 function weightedAvg(values: number[]): number {
+  if (values.length === 0) return 0;
+  if (values.length === 1) return values[0];
+  const denom = values.length - 1;
   let total = 0;
   let weightSum = 0;
   values.forEach((v, i) => {
-    const w = 1 + i / WINDOW;
+    const w = 1 + i / denom;
     total += v * w;
     weightSum += w;
   });

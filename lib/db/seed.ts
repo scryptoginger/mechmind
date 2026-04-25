@@ -1,8 +1,8 @@
-import { queryOne, withTx } from './index';
+import { execute, queryOne, withTx, nowIso } from './index';
 import { maintenanceTypeRepo } from '../repositories/maintenanceTypeRepo';
 import { partRepo } from '../repositories/partRepo';
 import { torqueSpecRepo } from '../repositories/torqueSpecRepo';
-import { procedureRepo, toolRepo, mediaLinkRepo } from '../repositories/procedureRepo';
+import { procedureRepo, toolRepo } from '../repositories/procedureRepo';
 
 /**
  * Seeds the canonical maintenance catalog for a 2017 Toyota Tacoma TRD Off-Road,
@@ -25,10 +25,10 @@ import { procedureRepo, toolRepo, mediaLinkRepo } from '../repositories/procedur
  * Idempotent: uses fixed string IDs so repeated runs upsert in place.
  */
 
-const SEED_MARKER_ID = 'seed-marker-v1';
+const SEED_MARKER = 'catalog-v1';
 
 export async function seedCatalog(): Promise<void> {
-  const exists = await queryOne<{ id: string }>(`SELECT id FROM maintenance_types WHERE id=?`, [SEED_MARKER_ID]);
+  const exists = await queryOne<{ name: string }>(`SELECT name FROM _seed_state WHERE name=?`, [SEED_MARKER]);
   if (exists) return;
 
   await withTx(async () => {
@@ -128,15 +128,16 @@ export async function seedCatalog(): Promise<void> {
       ['Run engine 1 minute, recheck for leaks', 'Top up to upper hash mark on dipstick if needed after a 5-minute settle.'],
       ['Reset maintenance reminder', 'Hold trip reset on key-on-engine-off until odometer flashes, then turn key off and on.'],
     ];
-    oilSteps.forEach(([title, detail], i) =>
-      procedureRepo.upsert({
+    for (let i = 0; i < oilSteps.length; i++) {
+      const [title, detail] = oilSteps[i];
+      await procedureRepo.upsert({
         id: `proc-oil-${i + 1}`,
         maintenanceTypeId: 'mt-oil-filter',
         stepNumber: i + 1,
         title,
         detail,
-      })
-    );
+      });
+    }
 
     // ── 2. Tire Rotation ──────────────────────────────────────────────────
     await maintenanceTypeRepo.upsert({
@@ -531,11 +532,6 @@ export async function seedCatalog(): Promise<void> {
     });
 
     // ── seed marker so we don't re-seed ──────────────────────────────────
-    await maintenanceTypeRepo.upsert({
-      id: SEED_MARKER_ID,
-      name: '__seed_marker_v1',
-      category: '__internal',
-      description: 'Idempotency marker. Do not edit.',
-    });
+    await execute(`INSERT INTO _seed_state (name, applied_at) VALUES (?, ?)`, [SEED_MARKER, nowIso()]);
   });
 }

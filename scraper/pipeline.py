@@ -15,7 +15,7 @@ from typing import Iterable
 
 from .loader import load_media_links, load_parts, load_procedures, load_torque_specs
 from .models import ScrapedMediaLink, ScrapedPart, ScrapedProcedureStep, ScrapedTorqueSpec
-from .sources.base import BaseScraper
+from .sources.base import BaseScraper, RobotsDisallowed
 from .sources.reddit import RedditScraper
 from .sources.tacoma_world import TacomaWorldScraper
 from .sources.youtube import YouTubeScraper
@@ -72,6 +72,8 @@ def run() -> dict:
                             procedures.append(item)
                         elif isinstance(item, ScrapedMediaLink):
                             media.append(item)
+                except RobotsDisallowed as e:
+                    logger.info("skipping %s (%s): %s", s.name, job_id, e)
                 except Exception as e:  # noqa: BLE001
                     logger.warning("scraper %s failed for %s: %s", s.name, job_id, e)
     finally:

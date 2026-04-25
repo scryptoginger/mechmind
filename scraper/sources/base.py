@@ -43,6 +43,14 @@ logger = logging.getLogger(__name__)
 _robots_cache: dict[str, urllib.robotparser.RobotFileParser] = {}
 
 
+class RobotsDisallowed(Exception):
+    """robots.txt forbids this URL for our user agent."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__(f"robots.txt disallows {url}")
+        self.url = url
+
+
 def _robots_for(url: str) -> urllib.robotparser.RobotFileParser:
     parsed = urlparse(url)
     base = f"{parsed.scheme}://{parsed.netloc}"
@@ -108,15 +116,12 @@ class BaseScraper:
         raise NotImplementedError
 
     # ── helpers ───────────────────────────────────────────────────────────
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2, max=20),
-        retry=retry_if_exception_type((httpx.HTTPError,)),
-        reraise=True,
-    )
     def fetch(self, url: str, *, allow_cache: bool = True) -> str:
+        # robots.txt is a hard, non-retryable gate — check before entering
+        # the retry wrapper so we don't waste backoff cycles on a permanent
+        # disallow. The pipeline catches RobotsDisallowed and skips the URL.
         if not is_allowed_by_robots(url):
-            raise PermissionError(f"robots.txt disallows {url}")
+            raise RobotsDisallowed(url)
 
         cache_path = self._cache_path_for(url)
         if allow_cache and cache_path.exists():
@@ -124,6 +129,15 @@ class BaseScraper:
             if age < self.cache_ttl_seconds:
                 return cache_path.read_text(encoding="utf-8")
 
+        return self._fetch_with_retry(url, cache_path)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=2, max=20),
+        retry=retry_if_exception_type((httpx.HTTPError,)),
+        reraise=True,
+    )
+    def _fetch_with_retry(self, url: str, cache_path: Path) -> str:
         self.rate_limiter.wait()
         logger.info("[%s] GET %s", self.name, url)
         res = self._client.get(url)

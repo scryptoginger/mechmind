@@ -65,8 +65,11 @@ export async function computeDueStatuses(
     const lastIso = last?.completedAt ?? null;
 
     const curMiles = vehicle.currentOdometer;
+    // milesSince is only well-defined when we have BOTH the current odo and a
+    // previous log. Without a log we can't claim anything has elapsed — the
+    // job may have been done by a previous owner. Treat as no signal.
     const milesSince =
-      curMiles != null && lastMiles != null ? curMiles - lastMiles : curMiles ?? null;
+      curMiles != null && lastMiles != null ? curMiles - lastMiles : null;
     const monthsSince = lastIso ? monthsBetween(lastIso, now) : null;
 
     const milesUntil = intervalMiles != null && milesSince != null ? intervalMiles - milesSince : null;
@@ -81,14 +84,15 @@ export async function computeDueStatuses(
 
     if (intervalMiles == null && intervalMonths == null) {
       status = 'unknown';
+    } else if (lastMiles == null && lastIso == null) {
+      // No history — backfill required before we can judge.
+      status = 'unknown';
     } else if (overdueByMiles || overdueByMonths) {
       status = 'overdue';
     } else if (soonByMiles || soonByMonths) {
       status = 'due_soon';
-    } else if (lastIso || (curMiles != null && intervalMiles != null)) {
-      status = 'up_to_date';
     } else {
-      status = 'unknown';
+      status = 'up_to_date';
     }
 
     result.push({
