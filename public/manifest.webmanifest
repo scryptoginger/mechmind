@@ -1,0 +1,11 @@
+{
+  "name": "MechMind",
+  "short_name": "MechMind",
+  "description": "Personal DIY vehicle maintenance tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": []
+}
